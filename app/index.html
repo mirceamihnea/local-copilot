@@ -1,0 +1,380 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local Copilot</title>
+    <link rel="icon" href="assets/local-copilot-icon-large.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="assets/local-copilot-icon-large.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="chat-app-shell" id="appShell">
+      <aside class="chat-sidebar" aria-label="Local Copilot tools">
+        <div id="sidebarResizeHandle" class="sidebar-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
+        <header class="sidebar-brand">
+          <div class="brand-lockup">
+            <div>
+              <strong>Local Copilot</strong>
+            </div>
+          </div>
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Hide sidebar" aria-expanded="true">â€¹</button>
+        </header>
+
+        <section class="conversation-archive" aria-label="Conversation archive">
+          <div class="archive-heading">
+            <h2>Conversations</h2>
+          </div>
+          <div id="conversationList" class="conversation-list"></div>
+        </section>
+
+        <section class="sidebar-dock" aria-label="Local Copilot settings">
+          <button id="settingsMenuButton" class="settings-menu-button" type="button" aria-expanded="false" aria-controls="settingsMenu">
+            <span aria-hidden="true">âš™</span>
+            <strong>Settings</strong>
+          </button>
+          <div id="settingsMenu" class="settings-menu" aria-hidden="true">
+            <button type="button" data-drawer-tab="filesPanel" onclick="window.localCopilotOpenPanel && window.localCopilotOpenPanel('filesPanel')">Files</button>
+            <button type="button" data-drawer-tab="languageSettingsPanel" onclick="window.localCopilotOpenPanel && window.localCopilotOpenPanel('languageSettingsPanel')">Language</button>
+            <button type="button" data-drawer-tab="customSettingsPanel" onclick="window.localCopilotOpenPanel && window.localCopilotOpenPanel('customSettingsPanel')">Custom</button>
+            <button type="button" data-drawer-tab="apiSettingsPanel" onclick="window.localCopilotOpenPanel && window.localCopilotOpenPanel('apiSettingsPanel')">API</button>
+          </div>
+        </section>
+      </aside>
+
+      <section id="sidebarDrawer" class="sidebar-drawer" aria-label="Workspace drawer" aria-hidden="true">
+          <div class="drawer-top">
+            <div>
+              <span>Panel</span>
+              <strong id="drawerTitle">Tasks</strong>
+            </div>
+            <button id="drawerCloseButton" type="button" aria-label="Close panel">Ã—</button>
+          </div>
+
+          <nav class="drawer-nav" aria-label="Local Copilot settings sections">
+            <button class="active" type="button" data-drawer-nav="filesPanel"><span>â–£</span><strong>Files</strong></button>
+            <button type="button" data-drawer-nav="languageSettingsPanel"><span>EN</span><strong>Language</strong></button>
+            <button type="button" data-drawer-nav="customSettingsPanel"><span>â—</span><strong>Appearance</strong></button>
+                      <button type="button" data-drawer-nav="apiSettingsPanel"><span></span><strong>API</strong></button>
+          </nav>
+
+          <section class="project-panel" aria-label="Project planning">
+          <section id="tasksPanel" class="tool-panel tab-panel active">
+            <div class="panel-heading">
+              <h2>Tasks</h2>
+              <button id="clearDoneTasksButton" type="button">Clear Done</button>
+            </div>
+            <form id="taskForm" class="task-form">
+              <label class="sr-only" for="taskInput">New task</label>
+              <input id="taskInput" autocomplete="off" placeholder="Add a task">
+              <button type="submit">Add</button>
+            </form>
+            <div id="taskList" class="task-list"></div>
+          </section>
+
+          <section id="filesPanel" class="tool-panel tab-panel">
+            <div class="panel-heading">
+              <h2>Media</h2>
+              <button id="clearFilesButton" type="button">Clear</button>
+            </div>
+            <div class="file-tool">
+              <label class="file-drop">
+                <input id="fileInput" type="file" multiple accept=".txt,.md,.csv,.json,.html,.htm,.pdf,image/*">
+                <span>Click here to choose media files</span>
+                <small>PDF, images, TXT, MD, CSV, JSON, HTML</small>
+              </label>
+              <div id="fileList" class="file-list"></div>
+              <div class="translation-tool settings-hidden-control" aria-hidden="true">
+                <label class="toggle">
+                  <input id="translatePdfToggle" type="checkbox" checked>
+                  <span>Auto-translate PDF answers to Romanian</span>
+                </label>
+                <label>
+                  <span>Translator URL</span>
+                  <input id="translateEndpointInput" autocomplete="off" placeholder="Optional: http://127.0.0.1:5000/translate">
+                </label>
+                <label class="toggle">
+                  <input id="onlineTranslateToggle" type="checkbox" checked>
+                  <span>Use online fallback if local translator is offline</span>
+                </label>
+                <div class="translation-actions">
+                  <button id="testTranslatorButton" type="button">Test Translator</button>
+                  <span id="translatorStatus">Not tested</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="languageSettingsPanel" class="settings-panel" aria-label="Language settings">
+            <div class="voice-band custom-band compact">
+              <select id="languageSelect" class="sr-only" aria-label="Language">
+                <option value="en-US">English</option>
+                <option value="ro-RO">Romana</option>
+              </select>
+              <div class="choice-list language-choice-list">
+                <button class="choice-card" type="button" data-language-option="ro-RO">
+                  <strong>Romana</strong>
+                  <span>Interfata si raspunsuri in romana.</span>
+                </button>
+                <button class="choice-card" type="button" data-language-option="en-US">
+                  <strong>English</strong>
+                  <span>English interface and answers.</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section id="customSettingsPanel" class="settings-panel" aria-label="Customize appearance">
+            <div class="voice-band custom-band compact">
+              <label>
+                <span>Theme</span>
+                <select id="themeSelect">
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </label>
+              <label>
+                <span>Accent color</span>
+                <input id="accentColorInput" type="color" value="#0a84ff">
+              </label>
+              <label>
+                <span>Background</span>
+                <select id="backgroundSelect" class="sr-only">
+                  <option value="aurora">Aurora</option>
+                  <option value="classic">Classic</option>
+                  <option value="graphite">Graphite</option>
+                  <option value="clean">Clean</option>
+                  <option value="wallpaper-teal">Teal waves</option>
+                  <option value="wallpaper-blue">Blue glass</option>
+                  <option value="wallpaper-white">White minimal</option>
+                  <option value="wallpaper-violet">Violet glass</option>
+                  <option value="wallpaper-green">Green lab</option>
+                  <option value="wallpaper-sunset">Sunset glass</option>
+                  <option value="wallpaper-midnight">Midnight grid</option>
+                  <option value="wallpaper-silver">Silver mist</option>
+                  <option value="wallpaper-carbon">Carbon wave</option>
+                  <option value="wallpaper-aqua">Aqua depth</option>
+                  <option value="nature-forest">Nature forest</option>
+                  <option value="nature-mountain">Nature mountain</option>
+                  <option value="nature-ocean">Nature ocean</option>
+                  <option value="space-nebula">Space nebula</option>
+                  <option value="space-planets">Space planets</option>
+                  <option value="space-stars">Space stars</option>
+                  <option value="obsidian-aurora">Obsidian aurora</option>
+                  <option value="deep-ocean">Deep ocean</option>
+                  <option value="lunar-mist">Lunar mist</option>
+                  <option value="mars-horizon">Mars horizon</option>
+                  <option value="forest-night">Forest night</option>
+                  <option value="glacier-blue">Glacier blue</option>
+                  <option value="violet-nebula">Violet nebula</option>
+                  <option value="solar-flare">Solar flare</option>
+                  <option value="neon-circuit">Neon circuit</option>
+                  <option value="polar-lights">Polar lights</option>
+                  <option value="desert-glass">Desert glass</option>
+                  <option value="crystal-lab">Crystal lab</option>
+                  <option value="rainforest-mist">Rainforest mist</option>
+                  <option value="cosmic-rose">Cosmic rose</option>
+                  <option value="ice-cave">Ice cave</option>
+                  <option value="black-gold">Black gold</option>
+                  <option value="bio-grid">Bio grid</option>
+                  <option value="ocean-sunrise">Ocean sunrise</option>
+                  <option value="purple-horizon">Purple horizon</option>
+                  <option value="steel-blueprint">Steel blueprint</option>
+                  <option value="emerald-depth">Emerald depth</option>
+                  <option value="starship-window">Starship window</option>
+                  <option value="soft-sakura">Soft sakura</option>
+                  <option value="alpine-dawn-painting">Alpine dawn</option>
+                  <option value="neon-rain-city">Neon rain city</option>
+                  <option value="bio-glass-lab">Bio glass lab</option>
+                  <option value="aurora-cabin">Aurora cabin</option>
+                  <option value="coral-depths">Coral depths</option>
+                  <option value="desert-temple">Desert temple</option>
+                  <option value="orbital-blue-planet">Orbital blue planet</option>
+                  <option value="jade-forest-lake">Jade forest lake</option>
+                  <option value="glacier-cavern">Glacier cavern</option>
+                  <option value="volcanic-coast">Volcanic coast</option>
+                  <option value="moonlit-sakura">Moonlit sakura</option>
+                  <option value="cyber-cathedral">Cyber cathedral</option>
+                  <option value="cloud-ocean-cliffs">Cloud ocean cliffs</option>
+                  <option value="titanium-workshop">Titanium workshop</option>
+                  <option value="northern-mountains">Northern mountains</option>
+                  <option value="custom-wallpaper">My wallpaper</option>
+                </select>
+              </label>
+              <div class="wallpaper-grid" aria-label="Background presets">
+                <button type="button" data-background-option="aurora"><span></span><strong>Aurora</strong></button>
+                <button type="button" data-background-option="wallpaper-teal"><span></span><strong>Teal</strong></button>
+                <button type="button" data-background-option="wallpaper-blue"><span></span><strong>Blue</strong></button>
+                <button type="button" data-background-option="space-nebula"><span></span><strong>Nebula</strong></button>
+                <button type="button" data-background-option="space-planets"><span></span><strong>Planets</strong></button>
+                <button type="button" data-background-option="nature-forest"><span></span><strong>Forest</strong></button>
+                <button type="button" data-background-option="obsidian-aurora"><span></span><strong>Obsidian</strong></button>
+                <button type="button" data-background-option="deep-ocean"><span></span><strong>Ocean</strong></button>
+                <button type="button" data-background-option="lunar-mist"><span></span><strong>Lunar</strong></button>
+                <button type="button" data-background-option="mars-horizon"><span></span><strong>Mars</strong></button>
+                <button type="button" data-background-option="forest-night"><span></span><strong>Night</strong></button>
+                <button type="button" data-background-option="glacier-blue"><span></span><strong>Glacier</strong></button>
+                <button type="button" data-background-option="violet-nebula"><span></span><strong>Violet</strong></button>
+                <button type="button" data-background-option="solar-flare"><span></span><strong>Solar</strong></button>
+                <button type="button" data-background-option="neon-circuit"><span></span><strong>Neon</strong></button>
+                <button type="button" data-background-option="polar-lights"><span></span><strong>Polar</strong></button>
+                <button type="button" data-background-option="desert-glass"><span></span><strong>Desert</strong></button>
+                <button type="button" data-background-option="crystal-lab"><span></span><strong>Crystal</strong></button>
+                <button type="button" data-background-option="rainforest-mist"><span></span><strong>Mist</strong></button>
+                <button type="button" data-background-option="cosmic-rose"><span></span><strong>Rose</strong></button>
+                <button type="button" data-background-option="ice-cave"><span></span><strong>Ice</strong></button>
+                <button type="button" data-background-option="black-gold"><span></span><strong>Gold</strong></button>
+                <button type="button" data-background-option="bio-grid"><span></span><strong>Bio</strong></button>
+                <button type="button" data-background-option="ocean-sunrise"><span></span><strong>Sunrise</strong></button>
+                <button type="button" data-background-option="purple-horizon"><span></span><strong>Horizon</strong></button>
+                <button type="button" data-background-option="steel-blueprint"><span></span><strong>Steel</strong></button>
+                <button type="button" data-background-option="emerald-depth"><span></span><strong>Emerald</strong></button>
+                <button type="button" data-background-option="starship-window"><span></span><strong>Starship</strong></button>
+                <button type="button" data-background-option="soft-sakura"><span></span><strong>Sakura</strong></button>
+                <button type="button" data-background-option="alpine-dawn-painting"><span></span><strong>Alpine</strong></button>
+                <button type="button" data-background-option="neon-rain-city"><span></span><strong>Neon City</strong></button>
+                <button type="button" data-background-option="bio-glass-lab"><span></span><strong>Bio Lab</strong></button>
+                <button type="button" data-background-option="aurora-cabin"><span></span><strong>Cabin</strong></button>
+                <button type="button" data-background-option="coral-depths"><span></span><strong>Coral</strong></button>
+                <button type="button" data-background-option="desert-temple"><span></span><strong>Temple</strong></button>
+                <button type="button" data-background-option="orbital-blue-planet"><span></span><strong>Orbit</strong></button>
+                <button type="button" data-background-option="jade-forest-lake"><span></span><strong>Jade Lake</strong></button>
+                <button type="button" data-background-option="glacier-cavern"><span></span><strong>Cavern</strong></button>
+                <button type="button" data-background-option="volcanic-coast"><span></span><strong>Volcano</strong></button>
+                <button type="button" data-background-option="moonlit-sakura"><span></span><strong>Moon Sakura</strong></button>
+                <button type="button" data-background-option="cyber-cathedral"><span></span><strong>Cathedral</strong></button>
+                <button type="button" data-background-option="cloud-ocean-cliffs"><span></span><strong>Cliffs</strong></button>
+                <button type="button" data-background-option="titanium-workshop"><span></span><strong>Workshop</strong></button>
+                <button type="button" data-background-option="northern-mountains"><span></span><strong>Northern</strong></button>
+              </div>
+              <label class="wallpaper-upload">
+                <span>Upload wallpaper</span>
+                <input id="wallpaperInput" type="file" accept="image/*">
+              </label>
+              <button id="clearWallpaperButton" type="button">Clear wallpaper</button>
+              <label class="ai-setting-label">
+                <span>AI instructions</span>
+                <textarea id="systemPromptInput" rows="3" placeholder="Ex: Always answer in Romanian. Keep answers concise."></textarea>
+              </label>
+              <label class="ai-setting-label">
+                <span>Temperature: <output id="temperatureValue">0.35</output></span>
+                <input id="temperatureSlider" type="range" min="0.1" max="1.0" step="0.05" value="0.35">
+              </label>
+              <label class="ai-setting-label">
+                <span>Max tokens: <output id="maxTokensValue">720</output></span>
+                <input id="maxTokensSlider" type="range" min="160" max="2000" step="40" value="1200">
+              </label>
+              <div class="custom-preview" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </section>
+          <section id="apiSettingsPanel" class="settings-panel" aria-label="API integrations">
+            <div class="voice-band custom-band compact">
+              <div class="api-integration-card">
+                <div class="api-card-header">
+                  <strong>Groq AI</strong>
+                  <span class="api-badge api-badge-free">Gratuit</span>
+                  <span class="api-badge api-badge-cloud">Cloud</span>
+                </div>
+                <p class="api-card-desc">Modele mari (Llama 3.3 70B) rulate pe cloud. Raspunsuri mult mai bune decat modelul local.</p>
+                <label class="ai-setting-label">
+                  <span>Groq API Key</span>
+                  <div class="api-input-wrap">
+                    <input id="groqApiKeyInput" type="password" autocomplete="off" placeholder="Lipeste cheia de pe console.groq.com">
+                    <span id="groqKeyStatus" class="api-key-status"></span>
+                  </div>
+                </label>
+                <label class="ai-setting-label">
+                  <span>Model</span>
+                  <select id="groqModelSelect">
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B (recomandat)</option>
+                    <option value="llama3-8b-8192">Llama 3.1 8B (rapid)</option>
+                    <option value="mixtral-8x7b-32768">Mixtral 8x7B (context lung)</option>
+                    <option value="gemma2-9b-it">Gemma 2 9B</option>
+                  </select>
+                </label>
+                <a class="api-card-link" href="https://console.groq.com" target="_blank">console.groq.com ↗ — gratuit, fara card</a>
+              </div>
+              <div class="api-integration-card local-ai-card">
+                <div class="api-card-header">
+                  <strong>Local AI</strong>
+                  <span class="api-badge api-badge-local">Normal</span>
+                  <span class="api-badge api-badge-offline">Offline</span>
+                </div>
+                <p class="api-card-desc">qwen3:8b rulat local prin Ollama. Fara internet, fara limita de mesaje. Activ in modul Normal si ca fallback pentru Smart.</p>
+                <div class="local-model-info">
+                  <div class="local-model-row"><span>Model</span><code>qwen3:8b</code></div>
+                  <div class="local-model-row"><span>Endpoint</span><code>127.0.0.1:11434</code></div>
+                </div>
+                <a class="api-card-link" href="https://ollama.com" target="_blank">ollama.com ↗ — open source, gratuit</a>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section id="workspace" class="chat-main">
+        <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="Close sidebar"></button>
+        <header class="chat-topbar" aria-label="Local Copilot">
+          <div class="topbar-brand">
+            <button id="sidebarOpenButton" class="sidebar-open-button" type="button" aria-label="Show sidebar">â˜°</button>
+          </div>
+          <div class="topbar-actions" aria-label="Quick actions">
+            <button id="quickTasksButton" class="topbar-action-button tasks-action" type="button" data-quick-panel="tasksPanel" title="Tasks" aria-label="Tasks"></button>
+            <button id="newChatButton" class="new-chat-button topbar-action-button" type="button" title="New chat" aria-label="New chat"></button>
+          </div>
+        </header>
+        <article class="conversation-panel" aria-labelledby="conversation-title">
+          <div class="panel-heading">
+            <h2 id="conversation-title">Conversation</h2>
+            <button id="exportChatButton" type="button">Export</button>
+            <button id="clearChatButton" type="button">Clear</button>
+          </div>
+          <div id="emptyChatHero" class="empty-chat-hero">
+            <h1>Cu ce vrei sa incepem?</h1>
+          </div>
+          <div id="conversation" class="conversation" aria-live="polite"></div>
+          <form id="textForm" class="text-entry">
+            <div id="groqUsagePanel" class="groq-usage-panel" hidden>
+              <div class="usage-panel-header">Groq usage</div>
+              <div class="usage-panel-row usage-row-daily">
+                <div class="usage-panel-top">
+                  <strong>Daily · Smart</strong>
+                  <span class="usage-pct">0% · resets soon</span>
+                </div>
+                <div class="usage-bar"><div class="usage-fill"></div></div>
+              </div>
+              <div class="usage-panel-row usage-row-weekly">
+                <div class="usage-panel-top">
+                  <strong>Weekly · Smart</strong>
+                  <span class="usage-pct">0% · resets soon</span>
+                </div>
+                <div class="usage-bar"><div class="usage-fill"></div></div>
+              </div>
+            </div>
+            <label class="sr-only" for="textInput">Type a message</label>
+            <button id="attachButton" class="composer-icon-button" type="button" aria-label="Add media">+</button>
+<div class="composer-input-wrap">
+              <button id="aiModeButton" class="ai-mode-button mode-control" type="button" title="Switch AI mode">Normal</button>
+              <input id="textInput" autocomplete="off" placeholder="Message Local Copilot">
+              <div id="groqUsageCircle" class="groq-usage-circle" hidden title="Smart: 30/30 req/min ramase">
+                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                  <circle class="usage-track" cx="10" cy="10" r="7"/>
+                  <circle class="usage-fill" cx="10" cy="10" r="7" stroke-dasharray="43.98" stroke-dashoffset="0"/>
+                </svg>
+              </div>
+            </div>
+            <button id="sendButton" class="composer-send-button" type="submit" aria-label="Send"></button>
+          </form>
+        </article>
+      </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
+
