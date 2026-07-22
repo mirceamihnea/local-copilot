@@ -1,0 +1,11 @@
+{
+  "appId": "com.localcopilot.app",
+  "appName": "Local Copilot",
+  "webDir": "app",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

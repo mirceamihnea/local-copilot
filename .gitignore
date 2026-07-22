@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Capacitor-generated native platform (regenerate with `npx cap add android`)
+android/
+
+# Bundled runtime binaries (Electron, Ollama, models) — not part of source
+Runtime/
+
+# Local build/launcher artifacts
+*.exe
+
+# Claude Code local tooling config (not part of the app)
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vs/
+.vscode/
+*.user

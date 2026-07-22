@@ -1,0 +1,23 @@
+{
+  "name": "local-copilot",
+  "version": "1.0.0",
+  "description": "A local-first AI assistant app with voice input/output, saved conversations, notes/tasks, and a file knowledge base, backed by local Ollama and an optional Groq cloud proxy.",
+  "main": "index.js",
+  "scripts": {
+    "sync": "cap sync android",
+    "open:android": "cap open android",
+    "run:android": "cap run android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.107.0"
+  }
+}

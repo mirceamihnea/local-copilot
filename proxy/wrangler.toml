@@ -1,0 +1,7 @@
+name = "local-copilot-proxy"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+# Secretul GROQ_API_KEY se seteaza cu:
+#   npx wrangler secret put GROQ_API_KEY
+# (nu se pune niciodata in acest fisier)
