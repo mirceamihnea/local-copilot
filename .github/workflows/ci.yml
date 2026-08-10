@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check:
+    name: Syntax check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check CommonJS / browser scripts parse
+        run: |
+          node --check app/app.js
+          node --check preview-server.js
+
+      # worker.js is an ES module (Cloudflare Worker); node --check treats a bare
+      # .js as CommonJS, so check it under an .mjs extension.
+      - name: Check the Cloudflare Worker parses
+        run: |
+          cp proxy/worker.js /tmp/worker.mjs
+          node --check /tmp/worker.mjs
+
+      - name: Check HTML references resolve
+        run: |
+          missing=0
+          for ref in $(grep -oE '(src|href)="[^"#:]+"' app/index.html \
+                       | sed -E 's/.*="([^"]+)"/\1/'); do
+            if [ ! -e "app/$ref" ]; then
+              echo "Missing asset referenced by index.html: $ref"
+              missing=1
+            fi
+          done
+          exit $missing
