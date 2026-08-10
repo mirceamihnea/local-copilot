@@ -1,5 +1,7 @@
 # Local Copilot
 
+[![CI](https://github.com/mirceamihnea/local-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/mirceamihnea/local-copilot/actions/workflows/ci.yml)
+
 A local-first AI assistant app. It runs a local model through [Ollama](https://ollama.com) (`qwen3:8b`) for private, offline chat, with an optional cloud fallback through a Groq API proxy for access to larger models (Llama 3.3 70B). Ships as an Electron desktop build and as an Android app via Capacitor.
 
 ## Features
