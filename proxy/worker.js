@@ -2,11 +2,15 @@
 // Tine API key-ul pe server; aplicatiile (desktop + mobil) apeleaza acest
 // endpoint fara niciun secret la bord.
 
+const DEFAULT_MODEL = "openai/gpt-oss-120b";
+
+// Only models currently live on GroqCloud. When Groq retires one, delete it here
+// and requests fall back to DEFAULT_MODEL without shipping an app update.
 const ALLOWED_MODELS = new Set([
-  "llama-3.3-70b-versatile",
-  "llama3-8b-8192",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it"
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "llama-3.1-8b-instant",
+  "qwen/qwen3.6-27b"
 ]);
 
 const MAX_TOKENS_CAP = 2000;
@@ -43,7 +47,7 @@ export default {
       return json({ error: "Invalid JSON" }, 400);
     }
 
-    const model = ALLOWED_MODELS.has(body.model) ? body.model : "llama-3.3-70b-versatile";
+    const model = ALLOWED_MODELS.has(body.model) ? body.model : DEFAULT_MODEL;
     const messages = Array.isArray(body.messages) ? body.messages.slice(-MAX_MESSAGES) : null;
     if (!messages || !messages.length) {
       return json({ error: "messages required" }, 400);

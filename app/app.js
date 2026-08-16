@@ -9,6 +9,28 @@ const LOCAL_AI_ENDPOINT = 'http://127.0.0.1:11434/api/chat';
 // (pentru dezvoltare) are prioritate si apeleaza Groq direct.
 const GROQ_PROXY_ENDPOINT = ''; // ex: 'https://local-copilot-proxy.<subdomain>.workers.dev/chat'
 
+// Groq retires models periodically (llama-3.3-70b-versatile was shut down on
+// 2026-08-16). A retired id stays in localStorage and would break the app for
+// existing users, so it is migrated to the current default on load.
+const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-120b';
+const GROQ_RETIRED_MODELS = new Set([
+  'llama-3.3-70b-versatile',
+  'llama3-8b-8192',
+  'llama3-70b-8192',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
+  'gemma-7b-it'
+]);
+
+function getGroqModel() {
+  const saved = (localStorage.getItem(storageKeys.groqModel) || '').trim();
+  if (!saved || GROQ_RETIRED_MODELS.has(saved)) {
+    localStorage.setItem(storageKeys.groqModel, GROQ_DEFAULT_MODEL);
+    return GROQ_DEFAULT_MODEL;
+  }
+  return saved;
+}
+
 const state = {
   latestReply: "",
   knowledgeFiles: [],
@@ -122,9 +144,9 @@ function init() {
   const savedGroqKey = localStorage.getItem(storageKeys.groqApiKey) || "";
   elements.groqApiKeyInput.value = savedGroqKey;
   updateGroqKeyStatus(savedGroqKey);
-  elements.groqModelSelect.value = localStorage.getItem(storageKeys.groqModel) || "llama-3.3-70b-versatile";
+  elements.groqModelSelect.value = getGroqModel();
   if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-    // Pe mobil nu exista Ollama local — doar Smart (Groq 70B) e disponibil.
+    // Pe mobil nu exista Ollama local — doar Smart (Groq GPT-OSS 120B) e disponibil.
     localStorage.setItem(storageKeys.aiMode, "smart");
     elements.aiModeButton.style.display = "none";
     document.body.classList.add("native-app");
@@ -3324,8 +3346,8 @@ function toggleAiMode() {
     const hasKey = Boolean((localStorage.getItem(storageKeys.groqApiKey) || "").trim());
     if (!hasKey && !GROQ_PROXY_ENDPOINT) {
       addMessage("assistant", replyText(
-        "Smart mode uses Groq 70B. Add your free API key in Settings → API to activate it.",
-        "Modul Smart foloseste Groq 70B. Adauga cheia gratuita in Setari → API ca sa il activezi."
+        "Smart mode uses Groq GPT-OSS 120B. Add your free API key in Settings → API to activate it.",
+        "Modul Smart foloseste Groq GPT-OSS 120B. Adauga cheia gratuita in Setari → API ca sa il activezi."
       ));
     }
   }
@@ -3341,8 +3363,8 @@ function updateAiModeButton() {
   btn.classList.remove("is-limited");
   btn.disabled = false;
   btn.title = isSmart
-    ? "Smart: Groq 70B — click pentru Normal (local 8B)"
-    : "Normal: local 8B — click pentru Smart (Groq 70B)";
+    ? "Smart: Groq GPT-OSS 120B — click pentru Normal (local 8B)"
+    : "Normal: local 8B — click pentru Smart (Groq GPT-OSS 120B)";
 
   const circle = elements.groqUsageCircle;
   if (circle) {
@@ -3501,13 +3523,13 @@ function disableSmartMode() {
   }, 62000);
 }
 
-async function askGroqAi(userInput, externalSignal = null, webContext = "", onToken = null) {
+async function askGroqAi(userInput, externalSignal = null, webContext = "", onToken = null, retriedAfterModelError = false) {
   const apiKey = (localStorage.getItem(storageKeys.groqApiKey) || "").trim();
   // Key manual (dezvoltare) → direct la Groq; altfel prin proxy-ul nostru,
   // care are key-ul pe server — utilizatorii finali nu configureaza nimic.
   const useProxy = !apiKey && Boolean(GROQ_PROXY_ENDPOINT);
   if (!apiKey && !useProxy) return "";
-  const model = localStorage.getItem(storageKeys.groqModel) || "llama-3.3-70b-versatile";
+  const model = getGroqModel();
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 60000);
@@ -3541,9 +3563,26 @@ async function askGroqAi(userInput, externalSignal = null, webContext = "", onTo
 
     if (!response.ok) {
       let errorDetail = response.status;
-      try { const err = await response.json(); errorDetail = err?.error?.message || response.status; } catch {}
+      let errorCode = "";
+      try {
+        const err = await response.json();
+        errorDetail = err?.error?.message || response.status;
+        errorCode = err?.error?.code || "";
+      } catch {}
       console.error(`[Local Copilot] Groq API error ${response.status}:`, errorDetail);
       if (response.status === 429) disableSmartMode();
+
+      // The model was retired while in use → migrate to the current default and
+      // retry once, so the app keeps working when Groq decommissions a model.
+      const modelRetired = errorCode === "model_decommissioned" ||
+        /decommission|has been deprecated|does not exist/i.test(String(errorDetail));
+      if (modelRetired && !retriedAfterModelError && model !== GROQ_DEFAULT_MODEL) {
+        GROQ_RETIRED_MODELS.add(model);
+        localStorage.setItem(storageKeys.groqModel, GROQ_DEFAULT_MODEL);
+        if (elements.groqModelSelect) elements.groqModelSelect.value = GROQ_DEFAULT_MODEL;
+        console.warn(`[Local Copilot] Model "${model}" retired by Groq; switching to ${GROQ_DEFAULT_MODEL}.`);
+        return askGroqAi(userInput, externalSignal, webContext, onToken, true);
+      }
       return "";
     }
 
