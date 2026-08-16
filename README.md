@@ -2,12 +2,13 @@
 
 [![CI](https://github.com/mirceamihnea/local-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/mirceamihnea/local-copilot/actions/workflows/ci.yml)
 
-A local-first AI assistant app. It runs a local model through [Ollama](https://ollama.com) (`qwen3:8b`) for private, offline chat, with an optional cloud fallback through a Groq API proxy for access to larger models (Llama 3.3 70B). Ships as an Electron desktop build and as an Android app via Capacitor.
+A local-first AI assistant app. It runs a local model through [Ollama](https://ollama.com) (`qwen3:8b`) for private, offline chat, with an optional cloud fallback through a Groq API proxy for access to larger models (GPT-OSS 120B). Ships as an Electron desktop build and as an Android app via Capacitor.
 
 ## Features
 
 - **Local chat** — talk to `qwen3:8b` running on your machine through Ollama, no data leaves the device.
-- **Optional cloud "Smart" mode** — route requests to Groq's hosted Llama 3.3 70B through a small Cloudflare Worker proxy, so no API key ever needs to live in the client.
+- **Optional cloud "Smart" mode** — route requests to Groq's hosted GPT-OSS 120B through a small Cloudflare Worker proxy, so no API key ever needs to live in the client.
+- **Resilient model selection** — retired Groq model ids are migrated to the current default on load, and a decommissioned-model error at runtime triggers an automatic switch and retry.
 - **Voice input/output** — speak your messages and hear replies read back, using the browser's speech APIs.
 - **Saved conversations** — chat history is kept locally and organized into a searchable conversation archive.
 - **Notes & tasks panel** — a lightweight task list alongside the chat for tracking to-dos.
