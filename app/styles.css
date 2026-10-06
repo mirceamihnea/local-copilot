@@ -626,7 +626,7 @@ select option {
   border-radius: 50%;
   isolation: isolate;
   background:
-    url("assets/local-copilot-dna-thinking-transparent.png") center / 86% 86% no-repeat;
+    url("assets/local-copilot-mark.svg") center / 56% 56% no-repeat;
   box-shadow:
     0 0 22px color-mix(in srgb, var(--accent) 34%, transparent);
   animation: logo-breathe 1.42s cubic-bezier(0.45, 0, 0.25, 1) infinite;
@@ -2198,7 +2198,7 @@ body.resizing-sidebar {
   white-space: nowrap;
 }
 
-.chat-sidebar .settings-tabs {
+.sidebar-drawer .settings-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
@@ -2209,7 +2209,7 @@ body.resizing-sidebar {
   backdrop-filter: none;
 }
 
-.chat-sidebar .settings-tabs button {
+.sidebar-drawer .settings-tabs button {
   justify-content: center;
   min-height: 32px;
   border-radius: 8px;
@@ -2220,14 +2220,14 @@ body.resizing-sidebar {
   font-size: 0.78rem;
 }
 
-.chat-sidebar .settings-tabs button.active {
+.sidebar-drawer .settings-tabs button.active {
   color: #fff;
   background: var(--accent);
 }
 
-.chat-sidebar .project-panel,
-.chat-sidebar .control-band,
-.chat-sidebar .voice-band {
+.sidebar-drawer .project-panel,
+.sidebar-drawer .control-band,
+.sidebar-drawer .voice-band {
   display: grid;
   gap: 10px;
   min-height: 0;
@@ -2240,7 +2240,7 @@ body.resizing-sidebar {
   backdrop-filter: none;
 }
 
-.chat-sidebar .project-panel {
+.sidebar-drawer .project-panel {
   grid-column: 2;
   grid-row: 2;
   overflow: auto;
@@ -2249,37 +2249,37 @@ body.resizing-sidebar {
   align-content: start;
 }
 
-.chat-sidebar .project-panel,
-.chat-sidebar .settings-panel.active,
-.chat-sidebar .tool-panel,
+.sidebar-drawer .project-panel,
+.sidebar-drawer .settings-panel.active,
+.sidebar-drawer .tool-panel,
 .conversation-list {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--ink) 24%, transparent) transparent;
 }
 
-.chat-sidebar .project-panel::-webkit-scrollbar,
-.chat-sidebar .settings-panel.active::-webkit-scrollbar,
-.chat-sidebar .tool-panel::-webkit-scrollbar,
+.sidebar-drawer .project-panel::-webkit-scrollbar,
+.sidebar-drawer .settings-panel.active::-webkit-scrollbar,
+.sidebar-drawer .tool-panel::-webkit-scrollbar,
 .conversation-list::-webkit-scrollbar {
   width: 8px;
 }
 
-.chat-sidebar .project-panel::-webkit-scrollbar-thumb,
-.chat-sidebar .settings-panel.active::-webkit-scrollbar-thumb,
-.chat-sidebar .tool-panel::-webkit-scrollbar-thumb,
+.sidebar-drawer .project-panel::-webkit-scrollbar-thumb,
+.sidebar-drawer .settings-panel.active::-webkit-scrollbar-thumb,
+.sidebar-drawer .tool-panel::-webkit-scrollbar-thumb,
 .conversation-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink) 22%, transparent);
 }
 
-.chat-sidebar .tool-panel {
+.sidebar-drawer .tool-panel {
   min-height: 0;
   overflow: hidden;
   border-radius: 8px;
   box-shadow: none;
 }
 
-.chat-sidebar .tab-panel.active {
+.sidebar-drawer .tab-panel.active {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: min-content;
@@ -2287,23 +2287,23 @@ body.resizing-sidebar {
   animation: panel-enter 230ms cubic-bezier(0.2, 0.86, 0.2, 1) both;
 }
 
-.chat-sidebar #filesPanel.tab-panel.active {
+.sidebar-drawer #filesPanel.tab-panel.active {
   min-height: 0;
 }
 
-.chat-sidebar #filesPanel .file-tool {
+.sidebar-drawer #filesPanel .file-tool {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
 }
 
-.chat-sidebar #filesPanel .file-list {
+.sidebar-drawer #filesPanel .file-list {
   overflow-y: auto;
   padding-right: 2px;
 }
 
-.chat-sidebar .settings-panel.active {
+.sidebar-drawer .settings-panel.active {
   display: block;
   min-height: 0;
   overflow: auto;
@@ -2311,10 +2311,10 @@ body.resizing-sidebar {
   animation: panel-enter 230ms cubic-bezier(0.2, 0.86, 0.2, 1) both;
 }
 
-.chat-sidebar .control-band,
-.chat-sidebar .voice-band,
-.chat-sidebar .local-ai-band,
-.chat-sidebar .custom-band {
+.sidebar-drawer .control-band,
+.sidebar-drawer .voice-band,
+.sidebar-drawer .local-ai-band,
+.sidebar-drawer .custom-band {
   grid-template-columns: 1fr;
 }
 
@@ -2524,26 +2524,30 @@ body.resizing-sidebar {
 .chat-sidebar button,
 .chat-sidebar input,
 .chat-sidebar select,
-.chat-sidebar textarea {
+.chat-sidebar textarea,
+.sidebar-drawer button,
+.sidebar-drawer input,
+.sidebar-drawer select,
+.sidebar-drawer textarea {
   border-radius: 8px;
 }
 
-.chat-sidebar .panel-heading {
+.sidebar-drawer .panel-heading {
   padding: 12px;
 }
 
-.chat-sidebar .task-form,
-.chat-sidebar .text-entry {
+.sidebar-drawer .task-form,
+.sidebar-drawer .text-entry {
   grid-template-columns: 1fr;
 }
 
-.chat-sidebar #tasksPanel.tab-panel.active {
+.sidebar-drawer #tasksPanel.tab-panel.active {
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   max-height: calc(100vh - 148px);
 }
 
-.chat-sidebar #tasksPanel .task-form {
+.sidebar-drawer #tasksPanel .task-form {
   grid-row: 2;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -2555,17 +2559,17 @@ body.resizing-sidebar {
   background: color-mix(in srgb, var(--panel-soft) 60%, transparent);
 }
 
-.chat-sidebar #tasksPanel .task-form input {
+.sidebar-drawer #tasksPanel .task-form input {
   min-height: 42px;
 }
 
-.chat-sidebar #tasksPanel .task-form button {
+.sidebar-drawer #tasksPanel .task-form button {
   min-width: 96px;
   min-height: 42px;
   border-radius: 12px;
 }
 
-.chat-sidebar #tasksPanel .task-list {
+.sidebar-drawer #tasksPanel .task-list {
   grid-row: 3;
   min-height: 0;
   overflow-y: auto;
@@ -2573,11 +2577,11 @@ body.resizing-sidebar {
   padding: 12px 14px 16px;
 }
 
-.chat-sidebar #tasksPanel .task-item {
+.sidebar-drawer #tasksPanel .task-item {
   min-height: 56px;
 }
 
-.chat-sidebar textarea {
+.sidebar-drawer textarea {
   min-height: 260px;
 }
 
@@ -2629,8 +2633,9 @@ body.resizing-sidebar {
   top: 0;
   left: 0;
   right: 0;
-  /* Above the sidebar (90) and the page content */
-  z-index: 135;
+  /* Below the sidebar (90): when the sidebar opens it covers the topbar's
+     logo instead of showing two logos stacked on top of each other. */
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2671,6 +2676,33 @@ body.resizing-sidebar {
   font-weight: 680;
   letter-spacing: 0;
   text-shadow: 0 1px 18px rgba(0, 0, 0, 0.46);
+}
+
+.topbar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  transition: opacity 220ms ease;
+}
+
+/* The open sidebar shows its own logo; its glass background would otherwise
+   let a faint copy of this one show through. */
+.chat-app-shell:not(.sidebar-collapsed) .topbar-logo {
+  opacity: 0;
+}
+
+.topbar-logo img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.topbar-logo strong {
+  font-size: 1.05rem;
+  white-space: nowrap;
 }
 
 :root[data-theme="light"] .chat-topbar strong,
@@ -3427,6 +3459,132 @@ body.native-app .local-ai-card {
   font-style: italic;
   font-size: 0.91em;
   line-height: 1.5;
+}
+
+/* ---- Markdown rendering in assistant replies ----
+   Assistant text is parsed into real block elements, so pre-wrap (which the
+   plain-text user bubbles still need) would add phantom gaps between them. */
+.message.assistant .message-content,
+.message.safety .message-content {
+  white-space: normal;
+  line-height: 1.55;
+}
+
+.message-content > *:first-child { margin-top: 0; }
+.message-content > *:last-child { margin-bottom: 0; }
+
+.message-content p {
+  margin: 0 0 10px;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4,
+.message-content h5,
+.message-content h6 {
+  margin: 18px 0 8px;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.message-content h1 { font-size: 1.28em; }
+.message-content h2 { font-size: 1.16em; }
+.message-content h3 { font-size: 1.06em; }
+.message-content h4,
+.message-content h5,
+.message-content h6 {
+  font-size: 1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.message-content ul,
+.message-content ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.message-content li {
+  margin: 3px 0;
+}
+
+.message-content li > ul,
+.message-content li > ol {
+  margin: 4px 0 2px;
+}
+
+.message-content hr {
+  height: 1px;
+  border: 0;
+  margin: 16px 0;
+  background: var(--line);
+}
+
+.message-content code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  font-family: "Cascadia Code", "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 0.87em;
+}
+
+.message-content pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--app-bg) 70%, transparent);
+}
+
+.message-content pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+/* Wide tables scroll inside their own container instead of stretching the bubble */
+.md-table-wrap {
+  margin: 0 0 12px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.message-content th,
+.message-content td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.message-content th {
+  background: var(--panel-soft);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.message-content tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.message-content a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* API settings panel */

@@ -9,6 +9,15 @@ const LOCAL_AI_ENDPOINT = 'http://127.0.0.1:11434/api/chat';
 // (pentru dezvoltare) are prioritate si apeleaza Groq direct.
 const GROQ_PROXY_ENDPOINT = ''; // ex: 'https://local-copilot-proxy.<subdomain>.workers.dev/chat'
 
+// Modelele GPT-OSS gandesc inainte sa raspunda (~200-400 tokeni masurat), iar
+// acei tokeni se scad din aceeasi limita max_tokens. Fara marja, o limita mica
+// din setari termina bugetul in gandire si raspunsul iese gol.
+const GROQ_REASONING_HEADROOM = 512;
+
+function isGroqReasoningModel(model) {
+  return String(model || '').startsWith('openai/gpt-oss');
+}
+
 // Groq retires models periodically (llama-3.3-70b-versatile was shut down on
 // 2026-08-16). A retired id stays in localStorage and would break the app for
 // existing users, so it is migrated to the current default on load.
@@ -43,6 +52,8 @@ const state = {
   thinkingNode: null,
   streamingMessage: null,
   streamingText: "",
+  streamPending: "",
+  streamPacer: null,
   generating: false,
   tasks: [],
   groqMinuteRequests: []
@@ -1067,10 +1078,13 @@ async function handleUserMessage(text) {
       streamContent = stream.content;
       state.thinkingNode = null;
       state.streamingMessage = streamMessage;
+      state.streamingText = "";
+      state.streamPending = "";
+      startStreamPacer(streamMessage, streamContent);
     }
     streamedText += token;
-    state.streamingText = streamedText;
-    updateStreamingMessage(streamMessage, streamContent, streamedText);
+    // Nu randam direct: textul intra in coada si e dezvaluit in ritm de pacer.
+    state.streamPending += token;
   };
 
   try {
@@ -1118,6 +1132,10 @@ async function handleUserMessage(text) {
     }
     const role = "assistant";
   if (streamMessage) {
+      // Lasam ritmul sa termine de afisat coada inainte de a fixa textul final,
+      // altfel raspunsul ar sari brusc la sfarsit.
+      await waitForStreamDrain(state.replyAbortController.signal);
+      stopStreamPacer();
       const finalText = reply || streamedText;
       const attachment = state.pendingAttachment || createAutoVisualAttachment(text, finalText);
       finalizeStreamingMessage(streamMessage, finalText, attachment);
@@ -1151,9 +1169,11 @@ async function handleUserMessage(text) {
     removeThinkingIndicator(thinkingNode);
     addMessage("safety", replyText("Something went wrong while thinking. Please try again.", "A aparut o problema in timp ce ma gandeam. Incearca din nou."));
   } finally {
+    stopStreamPacer();
     if (state.thinkingNode === thinkingNode) state.thinkingNode = null;
     state.streamingMessage = null;
     state.streamingText = "";
+    state.streamPending = "";
     state.replyAbortController = null;
     state.generating = false;
     setComposerGenerating(false);
@@ -1171,6 +1191,8 @@ function getLocalAiTimeoutReply(input) {
 
 function stopCurrentReply() {
   if (state.replyAbortController) state.replyAbortController.abort();
+  // Ce s-a generat deja, dar nu a apucat sa fie afisat, se pastreaza.
+  flushStreamPacer();
   if (state.streamingMessage && state.streamingText.trim()) {
     finalizeStreamingMessage(state.streamingMessage, state.streamingText);
   } else {
@@ -1179,6 +1201,7 @@ function stopCurrentReply() {
   state.thinkingNode = null;
   state.streamingMessage = null;
   state.streamingText = "";
+  state.streamPending = "";
   state.replyAbortController = null;
   state.generating = false;
   state.pendingAttachment = null;
@@ -1384,22 +1407,30 @@ async function answerImageQuestion(input, signal = null) {
   }
 
   try {
-    const visionText = await askVisionAi(input, imageFile.imageData, signal);
-    if (!visionText) {
+    const description = await askVisionAi(imageFile.imageData, signal);
+    if (!description) {
       return replyText(
-        "Moondream is installed, but it did not return a usable image description. Try a clearer image or restart Ollama.",
-        "Moondream este instalat, dar nu a returnat o descriere utila a imaginii. Incearca o imagine mai clara sau reporneste Ollama."
+        "The image model did not return a usable description. Try a clearer image or ask again.",
+        "Modelul de imagini nu a returnat o descriere utila. Incearca o imagine mai clara sau intreaba din nou."
       );
     }
 
+    // Daca modelul text nu raspunde, descrierea in engleza ramane mai utila decat nimic.
+    const answer = (await answerFromImageDescription(input, description, signal)) || description;
     return replyText(
-      `From ${imageFile.name}:\n\n${visionText}`,
-      `Din ${imageFile.name}:\n\n${visionText}`
+      `From ${imageFile.name}:\n\n${answer}`,
+      `Din ${imageFile.name}:\n\n${answer}`
     );
-  } catch {
+  } catch (error) {
+    if (error && error.code === "VISION_MODEL_MISSING") {
+      return replyText(
+        `The image recognition model (${VISION_MODEL}) is not installed in the local Ollama, so I can't look at images yet. Text questions still work normally.`,
+        `Modelul de recunoastere a imaginilor (${VISION_MODEL}) nu este instalat in Ollama local, deci inca nu pot analiza imagini. Intrebarile text merg normal.`
+      );
+    }
     return replyText(
-      "I could not reach the local vision model. Make sure Ollama is running and that moondream is installed.",
-      "Nu am putut contacta modelul local vision. Verifica daca Ollama ruleaza si daca moondream este instalat."
+      "I could not reach the local image model. Make sure the app started Ollama correctly, then try again.",
+      "Nu am putut contacta modelul local de imagini. Verifica daca aplicatia a pornit Ollama corect, apoi incearca din nou."
     );
   }
 }
@@ -1412,7 +1443,35 @@ function selectImageForQuestion(input) {
   return matched || images[0];
 }
 
-async function askVisionAi(userInput, imageDataUrl, externalSignal = null) {
+const VISION_MODEL = "moondream";
+const VISION_DESCRIBE_PROMPT = "Describe this image in detail: the main subject, objects, colors, any visible text, and where things are positioned.";
+
+// Pasul doi: modelul text (Groq sau qwen3, dupa mod) raspunde la intrebarea
+// reala a utilizatorului, in limba aleasa, pe baza descrierii in engleza.
+async function answerFromImageDescription(question, description, signal = null) {
+  const language = elements.languageSelect.value === "ro-RO" ? "Romanian" : "English";
+  const prompt = `An image-recognition model described an image like this:\n\n"""${description}"""\n\nUsing only that description, answer the user's question in ${language}. If the description doesn't contain the answer, say so plainly instead of guessing.\n\nQuestion: ${question}`;
+  try {
+    return (await askLocalAi(prompt, signal, "", null)) || "";
+  } catch {
+    return "";
+  }
+}
+
+// Incarca modelul de imagini in memorie in fundal, cand utilizatorul adauga o
+// poza, ca prima intrebare despre ea sa nu mai astepte incarcarea (~3 s).
+// Esecul se ignora: daca Ollama sau modelul lipsesc, mesajul corect apare
+// abia cand utilizatorul chiar intreaba ceva despre imagine.
+function warmUpVisionModel() {
+  if (!LOCAL_AI_ENDPOINT) return;
+  fetch(LOCAL_AI_ENDPOINT.replace(/\/api\/chat$/, "/api/generate"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: VISION_MODEL, prompt: "", keep_alive: "10m" })
+  }).catch(() => {});
+}
+
+async function askVisionAi(imageDataUrl, externalSignal = null) {
   const endpoint = LOCAL_AI_ENDPOINT;
   if (!endpoint) return "";
   const imageBase64 = dataUrlToBase64(imageDataUrl);
@@ -1432,26 +1491,36 @@ async function askVisionAi(userInput, imageDataUrl, externalSignal = null) {
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "moondream",
+        model: VISION_MODEL,
         stream: false,
         options: {
           temperature: 0.2,
           num_predict: 360
         },
+        // Moondream intelege doar engleza: o intrebare in romana produce gunoi
+        // ("?\".") la fiecare apel. De aceea ii cerem mereu o descriere in
+        // engleza; la intrebarea reala raspunde apoi modelul text.
         messages: [
           {
-            role: "system",
-            content: `Describe the image accurately. Reply in ${elements.languageSelect.value === "ro-RO" ? "Romanian" : "English"}. If the user asks for parts, labels, risks, or design ideas, answer directly from visible evidence and say when something is uncertain.`
-          },
-          {
             role: "user",
-            content: userInput || "Describe this image.",
+            content: VISION_DESCRIBE_PROMPT,
             images: [imageBase64]
           }
         ]
       })
     });
-    if (!response.ok) return "";
+    if (!response.ok) {
+      // Ollama raspunde 404 {"error":"model 'moondream' not found"} cand modelul
+      // nu e instalat — o semnalam separat, ca mesajul catre utilizator sa fie corect.
+      let detail = "";
+      try { detail = (await response.json()).error || ""; } catch {}
+      if (response.status === 404 || /not found/i.test(detail)) {
+        const missing = new Error(detail || `${VISION_MODEL} not found`);
+        missing.code = "VISION_MODEL_MISSING";
+        throw missing;
+      }
+      return "";
+    }
     const data = await response.json();
     return cleanLocalAiReply(data.message?.content || data.response || "").trim();
   } finally {
@@ -1507,6 +1576,10 @@ async function handleFiles(event) {
   }
 
   persistKnowledgeFilesSafely();
+
+  if (state.knowledgeFiles.some((file) => added.includes(file.name) && file.imageData)) {
+    warmUpVisionModel();
+  }
 
   renderFileList();
   elements.fileInput.value = "";
@@ -2333,7 +2406,7 @@ function buildGroqSystemPrompt(webContext = "") {
   const webBlock = webContext
     ? `\n\nWeb context (use for current facts, cite the source when possible):\n${webContext.slice(0, 2400)}`
     : "";
-  return `You are Local Copilot, a general-purpose intelligent assistant. Today is ${currentDate}. Reply in ${language}. Be direct and thorough. Use **bold** for key terms and bullets for lists.${customBlock}\n\nRULES:\n- Use web context below when it contains relevant current facts.\n- If web context is empty, answer from training knowledge and note when info may be outdated.\n- Never refuse a general knowledge question.${webBlock}`;
+  return `You are Local Copilot, a general-purpose intelligent assistant. Today is ${currentDate}. Reply in ${language}. Be direct and thorough. Use **bold** for key terms and bullets for lists.${customBlock}\n\nRULES:\n- Use web context below when it contains relevant current facts.\n- If web context is empty, answer from training knowledge and note when info may be outdated.\n- Never refuse a general knowledge question.\n- Never use LaTeX (no \\[ \\], \\( \\), $$, \\text, \\frac). Write formulas as plain text with Unicode symbols, e.g. τ = F × r = 1.96 N × 0.12 m ≈ 0.24 N·m, and put each key formula on its own line.${webBlock}`;
 }
 
 function getRecentConversationMessages() {
@@ -3003,11 +3076,231 @@ function waitForTypingDelay(chunk) {
   return new Promise((resolve) => window.setTimeout(resolve, delay));
 }
 
+// ---- Ritmul de afisare pentru raspunsurile in streaming ----
+// Groq livreaza tokenii aproape instant, asa ca un raspuns intreg ar aparea
+// dintr-o data. Tokenii primiti se pun intr-o coada si se dezvaluie treptat,
+// ca textul sa poata fi citit pe masura ce apare. Cand coada creste mult
+// (model rapid, raspuns lung) ritmul accelereaza, ca sa nu ramana in urma.
+const STREAM_TICK_MS = 22;
+const STREAM_BASE_CHARS = 5;   // ritm constant, de citit (~230 caractere/s)
+const STREAM_MAX_CHARS = 30;   // plafon pentru recuperare la raspunsuri lungi
+
+function startStreamPacer(message, content) {
+  stopStreamPacer();
+  state.streamPacer = window.setInterval(() => {
+    const pending = state.streamPending;
+    if (!pending) return;
+    // Ritm constant; accelereaza doar cat sa nu ramana mult in urma la
+    // raspunsuri lungi, si revine la ritmul de citit spre final.
+    const step = Math.min(
+      pending.length,
+      Math.min(STREAM_MAX_CHARS, Math.max(STREAM_BASE_CHARS, Math.ceil(pending.length / 80)))
+    );
+    state.streamPending = pending.slice(step);
+    state.streamingText += pending.slice(0, step);
+    updateStreamingMessage(message, content, state.streamingText);
+  }, STREAM_TICK_MS);
+}
+
+function stopStreamPacer() {
+  if (state.streamPacer) {
+    window.clearInterval(state.streamPacer);
+    state.streamPacer = null;
+  }
+}
+
+// Afiseaza imediat tot ce a mai ramas in coada (la Stop sau la finalizare).
+function flushStreamPacer(message = null, content = null) {
+  stopStreamPacer();
+  if (!state.streamPending) return;
+  state.streamingText += state.streamPending;
+  state.streamPending = "";
+  if (message && content) updateStreamingMessage(message, content, state.streamingText);
+}
+
+// Asteapta golirea cozii, ca finalizarea sa nu sara peste animatie.
+function waitForStreamDrain(signal = null) {
+  return new Promise((resolve) => {
+    const check = () => {
+      if (!state.streamPending || (signal && signal.aborted)) {
+        resolve();
+        return;
+      }
+      window.setTimeout(check, 30);
+    };
+    check();
+  });
+}
+
+// Markdown → HTML pentru raspunsurile modelului. Modelele mari scriu titluri,
+// tabele, liste imbricate si blocuri de cod, nu doar **bold**. Randarea ruleaza
+// si in timpul streaming-ului, deci trebuie sa tolereze markdown incomplet
+// (fence nedeschis inca, tabel pe jumatate scris).
+const MD_LIST_RE = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+const MD_HEADING_RE = /^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/;
+const MD_HR_RE = /^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/;
+const MD_QUOTE_RE = /^\s{0,3}>\s?/;
+const MD_FENCE_RE = /^\s*```/;
+
+function isMdBlank(line) {
+  return !line || !line.trim();
+}
+
+function isMdTableStart(lines, index) {
+  const row = lines[index];
+  const divider = lines[index + 1];
+  if (!row || !divider || !row.includes("|") || !divider.includes("|")) return false;
+  return /^[\s|:-]*-[\s|:-]*$/.test(divider);
+}
+
+function isMdBlockStart(lines, index) {
+  const line = lines[index];
+  return MD_HEADING_RE.test(line) || MD_HR_RE.test(line) || MD_QUOTE_RE.test(line) ||
+    MD_FENCE_RE.test(line) || MD_LIST_RE.test(line) || isMdTableStart(lines, index);
+}
+
+function formatMdInline(raw) {
+  let text = escapeHtml(raw);
+
+  // Scoatem codul inline din calea celorlalte reguli, ca `**` din cod sa ramana literal.
+  const codes = [];
+  text = text.replace(/`([^`]+)`/g, (_, code) => `C${codes.push(code) - 1}`);
+
+  text = text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  return text.replace(/C(\d+)/g, (_, i) => `<code>${codes[Number(i)]}</code>`);
+}
+
+function splitMdTableRow(line) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+function renderMdList(lines, start) {
+  const baseIndent = lines[start].match(/^\s*/)[0].length;
+  const ordered = /^\s*\d+[.)]\s+/.test(lines[start]);
+  const items = [];
+  let i = start;
+
+  while (i < lines.length) {
+    if (isMdBlank(lines[i])) {
+      if (i + 1 < lines.length && MD_LIST_RE.test(lines[i + 1])) { i += 1; continue; }
+      break;
+    }
+
+    const match = lines[i].match(MD_LIST_RE);
+    if (!match) {
+      // linie de continuare a ultimului element
+      if (items.length && !isMdBlockStart(lines, i)) {
+        items[items.length - 1].content += ` ${lines[i].trim()}`;
+        i += 1;
+        continue;
+      }
+      break;
+    }
+
+    const indent = match[1].length;
+    if (indent < baseIndent) break;
+
+    if (indent > baseIndent && items.length) {
+      const [nestedHtml, nextIndex] = renderMdList(lines, i);
+      items[items.length - 1].nested += nestedHtml;
+      i = nextIndex;
+      continue;
+    }
+
+    // Alt tip de marcaj pe acelasi nivel (ex. "1." dupa "-") incepe o lista noua.
+    if (/^\d+[.)]$/.test(match[2]) !== ordered) break;
+
+    items.push({ content: match[3], nested: "" });
+    i += 1;
+  }
+
+  const tag = ordered ? "ol" : "ul";
+  const body = items.map((item) => `<li>${formatMdInline(item.content)}${item.nested}</li>`).join("");
+  return [`<${tag}>${body}</${tag}>`, i];
+}
+
 function formatAssistantMessage(text) {
-  return escapeHtml(text)
-    .replace(/\*\*([^*\n][^*]*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|\n)&gt; ([^\n]+)/g, (_, prefix, content) => `\n<blockquote>${content}</blockquote>`)
-    .replace(/(^|\n)- /g, "$1- ");
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (isMdBlank(line)) { i += 1; continue; }
+
+    if (MD_FENCE_RE.test(line)) {
+      const body = [];
+      i += 1;
+      while (i < lines.length && !MD_FENCE_RE.test(lines[i])) { body.push(lines[i]); i += 1; }
+      i += 1; // sare peste fence-ul de inchidere (poate lipsi in streaming)
+      out.push(`<pre><code>${escapeHtml(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    if (isMdTableStart(lines, i)) {
+      const header = splitMdTableRow(line);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].includes("|") && !isMdBlank(lines[i])) {
+        rows.push(splitMdTableRow(lines[i]));
+        i += 1;
+      }
+      const head = header.map((cell) => `<th>${formatMdInline(cell)}</th>`).join("");
+      const body = rows
+        .map((row) => `<tr>${row.map((cell) => `<td>${formatMdInline(cell)}</td>`).join("")}</tr>`)
+        .join("");
+      out.push(`<div class="md-table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`);
+      continue;
+    }
+
+    const heading = line.match(MD_HEADING_RE);
+    if (heading) {
+      const level = heading[1].length;
+      out.push(`<h${level}>${formatMdInline(heading[2])}</h${level}>`);
+      i += 1;
+      continue;
+    }
+
+    if (MD_HR_RE.test(line)) { out.push("<hr>"); i += 1; continue; }
+
+    if (MD_QUOTE_RE.test(line)) {
+      const body = [];
+      while (i < lines.length && MD_QUOTE_RE.test(lines[i])) {
+        body.push(lines[i].replace(MD_QUOTE_RE, ""));
+        i += 1;
+      }
+      out.push(`<blockquote>${formatMdInline(body.join(" "))}</blockquote>`);
+      continue;
+    }
+
+    if (MD_LIST_RE.test(line)) {
+      const [listHtml, nextIndex] = renderMdList(lines, i);
+      out.push(listHtml);
+      i = nextIndex > i ? nextIndex : i + 1;
+      continue;
+    }
+
+    const paragraph = [];
+    while (i < lines.length && !isMdBlank(lines[i]) && !isMdBlockStart(lines, i)) {
+      paragraph.push(lines[i]);
+      i += 1;
+    }
+    if (paragraph.length) {
+      out.push(`<p>${formatMdInline(paragraph.join("\n")).replace(/\n/g, "<br>")}</p>`);
+    } else {
+      i += 1;
+    }
+  }
+
+  return out.join("");
 }
 
 async function copyMessageText(message, button) {
@@ -3551,7 +3844,8 @@ async function askGroqAi(userInput, externalSignal = null, webContext = "", onTo
       body: JSON.stringify({
         model,
         stream: Boolean(onToken),
-        max_tokens: Math.max(120, Number(localStorage.getItem(storageKeys.aiMaxTokens)) || 1200),
+        max_tokens: Math.max(120, Number(localStorage.getItem(storageKeys.aiMaxTokens)) || 1200) +
+          (isGroqReasoningModel(model) ? GROQ_REASONING_HEADROOM : 0),
         temperature: Number(localStorage.getItem(storageKeys.aiTemperature)) || 0.35,
         messages: [
           { role: "system", content: buildGroqSystemPrompt(webContext) },
